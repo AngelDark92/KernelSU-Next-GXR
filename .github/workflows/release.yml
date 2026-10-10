@@ -57,10 +57,14 @@ jobs:
           mkdir -p release
           cp module/kernelsu-gxr.ko release/
           cp manager/KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk release/
+          # Stable alias for the root manager's "Download the APK" link: the versioned name
+          # above changes whenever upstream does, this one never does.
+          cp manager/KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk release/KernelSU-Next-manager.apk
           cp tools/patch_kernelsu_module.py release/
           cd release
           sha256sum kernelsu-gxr.ko \
             KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk \
+            KernelSU-Next-manager.apk \
             patch_kernelsu_module.py > SHA256SUMS
           sha256sum -c SHA256SUMS
           cat SHA256SUMS
@@ -86,5 +90,6 @@ jobs:
             --notes-file RELEASE-NOTES.md \
             --asset release/kernelsu-gxr.ko \
             --asset "release/KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk" \
+            --asset release/KernelSU-Next-manager.apk \
             --asset release/patch_kernelsu_module.py \
             --asset release/SHA256SUMS
