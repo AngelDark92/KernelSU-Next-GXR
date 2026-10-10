@@ -1,0 +1,90 @@
+name: release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a GitHub Release for the source version
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Version sources agree
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            python3 tools/verify_release_version.py --tag "${GITHUB_REF#refs/tags/}"
+          else
+            python3 tools/verify_release_version.py
+          fi
+
+      - name: Verify pinned bytes and reproduce the module
+        run: python3 tools/verify_bundle.py --reproduce
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Release policy
+        id: policy
+        env:
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: python3 tools/release_policy.py
+
+      - name: Persist the version bump
+        if: steps.policy.outputs.bump == 'true'
+        run: python3 tools/release_policy.py --persist
+
+      - name: Assemble the release assets
+        run: |
+          mkdir -p release
+          cp module/kernelsu-gxr.ko release/
+          cp manager/KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk release/
+          cp tools/patch_kernelsu_module.py release/
+          cd release
+          sha256sum kernelsu-gxr.ko \
+            KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk \
+            patch_kernelsu_module.py > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KernelSU-Next-GXR-${{ steps.policy.outputs.tag }}
+          path: release/
+          retention-days: 30
+
+      - name: Commit the version bump
+        if: steps.policy.outputs.publish == 'true' && steps.policy.outputs.bump == 'true'
+        run: python3 tools/release_policy.py --commit
+
+      - name: Publish the release
+        if: steps.policy.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/publish_release.py \
+            --tag "${{ steps.policy.outputs.tag }}" \
+            --title "KernelSU-Next for Galaxy XR ${{ steps.policy.outputs.tag }}" \
+            --notes-file RELEASE-NOTES.md \
+            --asset release/kernelsu-gxr.ko \
+            --asset "release/KernelSU_Next_v3.4.0-android12-5.10_33303-release.apk" \
+            --asset release/patch_kernelsu_module.py \
+            --asset release/SHA256SUMS

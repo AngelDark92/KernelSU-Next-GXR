@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version sources agree
+        run: python3 tools/verify_release_version.py
+      - name: Verify pinned bytes and reproduce the module
+        run: python3 tools/verify_bundle.py --reproduce
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v

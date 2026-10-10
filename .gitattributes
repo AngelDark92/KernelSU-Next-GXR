@@ -1,0 +1,4 @@
+# Pinned binaries and hashed tools: never normalise their bytes.
+*.ko binary
+*.apk binary
+tools/patch_kernelsu_module.py -text
